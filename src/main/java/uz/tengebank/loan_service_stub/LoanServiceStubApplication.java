@@ -6,8 +6,18 @@ import lombok.NoArgsConstructor;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.web.bind.annotation.*;
 import springfox.documentation.builders.PathSelectors;
 import springfox.documentation.builders.RequestHandlerSelectors;
@@ -34,7 +44,7 @@ public class LoanServiceStubApplication {
     }
 }
 
-@RequestMapping("loan-service/api/v1")
+@RequestMapping("/api/v1/loan-service")
 @RestController
 class LoanServiceApiV1 {
     @CrossOrigin
@@ -61,6 +71,47 @@ class LoanRq {
     private Integer loanTerm; // Автокредит до 48 месяцев; Микрозайм до 36 месяцев; Ипотека до 180 месяцев
     private Integer payMethod; // Уменьшение платежей-0; Аннуитет реальный с измен.на раб.дни-1; Аннуитет 360/30-2; Аннуитет реальный без измен.на раб.дни-3
     private Boolean agreement;
+}
+
+@Configuration
+@EnableWebSecurity
+class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http
+                .csrf().disable()
+                .authorizeRequests()
+                .antMatchers("/").permitAll()
+                .antMatchers(HttpMethod.POST, "/api/**").hasAnyRole(Role.ADMIN.name(), Role.USER.name())
+                .anyRequest()
+                .authenticated()
+                .and()
+                .httpBasic();
+    }
+
+    @Override
+    protected UserDetailsService userDetailsService() {
+        return new InMemoryUserDetailsManager(
+                User.builder()
+                        .username("admin")
+                        .password(passwordEncoder().encode("admin"))
+                        .roles(Role.ADMIN.name())
+                        .build(),
+                User.builder()
+                        .username("user")
+                        .password(passwordEncoder().encode("user"))
+                        .roles(Role.USER.name())
+                        .build());
+    }
+
+    protected PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(12);
+    }
+}
+
+enum Role {
+    USER, ADMIN
 }
 
 @ResponseStatus(value = HttpStatus.INTERNAL_SERVER_ERROR)
